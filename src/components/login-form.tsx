@@ -60,11 +60,13 @@ export function LoginForm() {
   const [remember, setRemember] = useState(true);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [newsletter, setNewsletter] = useState(false);
-  const [error, setError] = useState<string | null>(
-    searchParams.get("error") === "auth"
-      ? "No se pudo confirmar el correo. Solicita un reenvío e inténtalo de nuevo."
-      : null
-  );
+  const [error, setError] = useState<string | null>(() => {
+    const err = searchParams.get("error");
+    if (err === "auth") {
+      return "No se pudo completar el acceso con Google/correo. Revisa que el Client ID OAuth y el redirect estén bien configurados.";
+    }
+    return null;
+  });
   const [message, setMessage] = useState<string | null>(null);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -210,26 +212,46 @@ export function LoginForm() {
   async function onGoogle() {
     setError(null);
     setMessage(null);
-    const supabase = createClient();
-    const afterAuthPath =
-      !redirect || redirect === "/" ? "/" : redirect;
+    setLoading(true);
 
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(afterAuthPath)}`,
-        queryParams: {
-          access_type: "offline",
-          prompt: "select_account",
+    try {
+      const supabase = createClient();
+      const afterAuthPath =
+        !redirect || redirect === "/" ? "/" : redirect;
+      const siteUrl =
+        process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+        window.location.origin;
+
+      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(afterAuthPath)}`,
+          queryParams: {
+            access_type: "offline",
+            prompt: "select_account",
+          },
         },
-      },
-    });
-    if (oauthError) {
-      setError(
-        /provider is not enabled/i.test(oauthError.message)
-          ? "Google no está activado aún. Actívalo en Supabase → Authentication → Providers → Google."
-          : oauthError.message
-      );
+      });
+
+      if (oauthError) {
+        setError(
+          /provider is not enabled/i.test(oauthError.message)
+            ? "Google no está activado en Supabase → Authentication → Providers → Google."
+            : /invalid_client|oauth client/i.test(oauthError.message)
+              ? "Client ID/Secret de Google incorrectos en Supabase. Revisa las credenciales OAuth."
+              : oauthError.message
+        );
+        return;
+      }
+
+      // Fallback si el SDK no redirige solo
+      if (data?.url) {
+        window.location.assign(data.url);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo abrir Google.");
+    } finally {
+      setLoading(false);
     }
   }
 
