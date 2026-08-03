@@ -26,7 +26,7 @@ export default async function AccountLayout({
     .eq("id", user.id)
     .maybeSingle();
 
-  const profile = data as Profile | null;
+  const profile = (data as Profile | null) ?? null;
   const displayName =
     profile?.full_name?.trim() ||
     user.user_metadata?.full_name ||

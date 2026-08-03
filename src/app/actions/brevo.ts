@@ -2,6 +2,7 @@
 
 import {
   createBrevoEmailCampaign,
+  sendSignupConfirmNotice,
   upsertBrevoContact,
   type CreateCampaignInput,
 } from "@/lib/brevo";
@@ -62,6 +63,36 @@ export async function subscribeNewsletterEmail(
         error instanceof Error
           ? error.message
           : "No se pudo sincronizar con Brevo.",
+    };
+  }
+}
+
+export async function notifySignupConfirmation(
+  email: string,
+  fullName?: string
+): Promise<BrevoActionResult> {
+  if (!isValidEmail(email)) {
+    return { ok: false, message: "Correo inválido." };
+  }
+
+  try {
+    const origin =
+      process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+      "http://localhost:3000";
+    await sendSignupConfirmNotice({
+      email,
+      fullName,
+      loginUrl: `${origin}/login`,
+    });
+    return { ok: true, message: "Aviso de confirmación enviado." };
+  } catch (error) {
+    console.error("[brevo] notifySignupConfirmation", error);
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "No se pudo enviar el aviso de confirmación.",
     };
   }
 }

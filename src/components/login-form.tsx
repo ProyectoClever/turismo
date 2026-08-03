@@ -6,7 +6,10 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail, UserRound } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
-import { subscribeNewsletterEmail } from "@/app/actions/brevo";
+import {
+  notifySignupConfirmation,
+  subscribeNewsletterEmail,
+} from "@/app/actions/brevo";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +61,7 @@ export function LoginForm() {
   const [newsletter, setNewsletter] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const isSignup = mode === "signup";
@@ -73,6 +77,10 @@ export function LoginForm() {
         setError("Debes aceptar los términos y condiciones.");
         return;
       }
+      if (password.length < 6) {
+        setError("La contraseña debe tener al menos 6 caracteres.");
+        return;
+      }
       if (password !== confirmPassword) {
         setError("Las contraseñas no coinciden.");
         return;
@@ -81,6 +89,8 @@ export function LoginForm() {
 
     setLoading(true);
     const supabase = createClient();
+    const afterAuthPath =
+      !redirect || redirect === "/" ? "/perfil" : redirect;
 
     try {
       if (mode === "login") {
@@ -89,10 +99,10 @@ export function LoginForm() {
           password,
         });
         if (signInError) throw signInError;
-        router.push(redirect);
+        router.push(afterAuthPath);
         router.refresh();
       } else {
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -100,19 +110,77 @@ export function LoginForm() {
               full_name: fullName,
               newsletter,
             },
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(afterAuthPath)}`,
           },
         });
         if (signUpError) throw signUpError;
+
         if (newsletter) {
-          await subscribeNewsletterEmail(email, fullName);
+          void subscribeNewsletterEmail(email, fullName).catch(() => null);
         }
+
+        // Aviso por Brevo + correo de confirmación de Supabase Auth
+        void notifySignupConfirmation(email, fullName).catch(() => null);
+
+        if (data.session) {
+          router.push(afterAuthPath);
+          router.refresh();
+          return;
+        }
+
+        setPendingEmail(email);
         setMessage(
-          "Cuenta creada. Revisa tu correo si necesitas confirmar el registro."
+          `Te enviamos un correo a ${email} para confirmar tu cuenta. Abre el enlace de confirmación y luego inicia sesión.`
         );
+        setMode("login");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ocurrió un error");
+      const raw = err instanceof Error ? err.message : "Ocurrió un error";
+      if (/email not confirmed/i.test(raw)) {
+        setError(
+          "Debes confirmar tu correo antes de iniciar sesión. Revisa tu bandeja o reenvía el correo de confirmación."
+        );
+        setPendingEmail(email);
+      } else if (/invalid login credentials/i.test(raw)) {
+        setError("Correo o contraseña incorrectos.");
+      } else if (/user already registered/i.test(raw)) {
+        setError("Ese correo ya está registrado. Inicia sesión.");
+        setMode("login");
+      } else {
+        setError(raw);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function resendConfirmation() {
+    const target = pendingEmail || email;
+    if (!target) {
+      setError("Escribe tu correo para reenviar la confirmación.");
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    setLoading(true);
+    try {
+      const supabase = createClient();
+      const afterAuthPath =
+        !redirect || redirect === "/" ? "/perfil" : redirect;
+      const { error: resendError } = await supabase.auth.resend({
+        type: "signup",
+        email: target,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(afterAuthPath)}`,
+        },
+      });
+      if (resendError) throw resendError;
+      void notifySignupConfirmation(target, fullName).catch(() => null);
+      setMessage(
+        `Correo de confirmación reenviado a ${target}. Revisa bandeja y spam.`
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo reenviar.");
     } finally {
       setLoading(false);
     }
@@ -363,6 +431,16 @@ export function LoginForm() {
                 <p className="text-sm text-[#078d99]" role="status">
                   {message}
                 </p>
+              )}
+              {(pendingEmail || (!isSignup && email)) && (
+                <button
+                  type="button"
+                  onClick={resendConfirmation}
+                  disabled={loading}
+                  className="text-left text-sm font-semibold text-[#0799a6] underline-offset-2 hover:underline disabled:opacity-60"
+                >
+                  Reenviar correo de confirmación
+                </button>
               )}
 
               <button

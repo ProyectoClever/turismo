@@ -4,6 +4,13 @@ import { Button } from "@/components/ui/button";
 import { ReservationsGuest } from "@/components/reservations-guest";
 import type { Booking } from "@/lib/types";
 
+function isMissingTableError(message: string | undefined) {
+  if (!message) return false;
+  return /schema cache|does not exist|PGRST205|Could not find the table/i.test(
+    message
+  );
+}
+
 export default async function MisReservasPage() {
   const supabase = await createClient();
   const {
@@ -20,6 +27,7 @@ export default async function MisReservasPage() {
     .order("created_at", { ascending: false });
 
   const bookings = (data as Booking[]) ?? [];
+  const schemaMissing = isMissingTableError(error?.message);
 
   return (
     <section className="mx-auto w-full max-w-6xl px-5 py-12 md:px-[5%] xl:px-[13.5%]">
@@ -42,13 +50,33 @@ export default async function MisReservasPage() {
       </header>
 
       {error && (
-        <p className="rounded-[7px] border border-[#e8edf0] bg-[#f4f8f9] px-4 py-3 text-sm text-[#5b657a]">
-          {error.message}. Asegúrate de haber ejecutado{" "}
-          <code className="rounded bg-white px-1.5 py-0.5">
-            supabase/schema.sql
-          </code>
-          .
-        </p>
+        <div className="rounded-[10px] border border-[#f3d2a4] bg-[#fff8ee] px-4 py-4 text-sm text-[#5b657a]">
+          {schemaMissing ? (
+            <>
+              <p className="m-0 font-semibold text-[#172033]">
+                Falta crear las tablas en Supabase
+              </p>
+              <p className="mt-2 mb-0">
+                En el{" "}
+                <a
+                  href="https://supabase.com/dashboard/project/cbelkhniyewvjfgejpbh/sql/new"
+                  className="font-semibold text-[#0798a8]"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  SQL Editor
+                </a>{" "}
+                de tu proyecto, pega y ejecuta el archivo{" "}
+                <code className="rounded bg-white px-1.5 py-0.5">
+                  supabase/schema.sql
+                </code>
+                . Luego recarga esta página.
+              </p>
+            </>
+          ) : (
+            <p className="m-0">{error.message}</p>
+          )}
+        </div>
       )}
 
       {!error && bookings.length === 0 && (
