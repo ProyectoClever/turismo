@@ -228,7 +228,6 @@ export function LoginForm() {
         options: {
           redirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(afterAuthPath)}`,
           queryParams: {
-            access_type: "offline",
             prompt: "select_account",
           },
         },
