@@ -218,9 +218,8 @@ export function LoginForm() {
       const supabase = createClient();
       const afterAuthPath =
         !redirect || redirect === "/" ? "/" : redirect;
-      const siteUrl =
-        process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-        window.location.origin;
+      // Siempre la URL actual (local o Railway), no forzar localhost
+      const siteUrl = window.location.origin;
 
       const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -244,7 +243,6 @@ export function LoginForm() {
         return;
       }
 
-      // Fallback si el SDK no redirige solo
       if (data?.url) {
         window.location.assign(data.url);
       }

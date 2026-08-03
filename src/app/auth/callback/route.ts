@@ -11,12 +11,16 @@ function safeNext(path: string | null) {
 }
 
 function getOrigin(request: Request) {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
-  if (configured) return configured;
-
   const host = request.headers.get("x-forwarded-host");
   const proto = request.headers.get("x-forwarded-proto") ?? "https";
-  if (host) return `${proto.split(",")[0].trim()}://${host}`;
+  if (host) {
+    return `${proto.split(",")[0].trim()}://${host.split(",")[0].trim()}`;
+  }
+
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+  if (configured && !configured.includes("localhost")) {
+    return configured;
+  }
 
   return new URL(request.url).origin;
 }
