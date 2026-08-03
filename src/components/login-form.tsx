@@ -61,9 +61,11 @@ export function LoginForm() {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [newsletter, setNewsletter] = useState(false);
   const [error, setError] = useState<string | null>(() => {
+    const message = searchParams.get("message");
+    if (message) return message;
     const err = searchParams.get("error");
     if (err === "auth") {
-      return "No se pudo completar el acceso con Google/correo. Revisa que el Client ID OAuth y el redirect estén bien configurados.";
+      return "No se pudo completar el acceso con Google/correo. Revisa Site URL en Supabase (debe ser la URL de Railway, no localhost) y vuelve a intentar.";
     }
     return null;
   });

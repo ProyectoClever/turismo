@@ -3,6 +3,8 @@ import { type EmailOtpType } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+const PRODUCTION_URL = "https://turismo-production-1825.up.railway.app";
+
 function safeNext(path: string | null) {
   if (!path || !path.startsWith("/") || path.startsWith("//")) {
     return "/";
@@ -11,10 +13,12 @@ function safeNext(path: string | null) {
 }
 
 function getOrigin(request: Request) {
-  const host = request.headers.get("x-forwarded-host");
-  const proto = request.headers.get("x-forwarded-proto") ?? "https";
-  if (host) {
-    return `${proto.split(",")[0].trim()}://${host.split(",")[0].trim()}`;
+  const host = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const proto =
+    request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ?? "https";
+
+  if (host && !host.includes("localhost")) {
+    return `${proto}://${host}`;
   }
 
   const configured = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
@@ -22,31 +26,48 @@ function getOrigin(request: Request) {
     return configured;
   }
 
+  // Producción: nunca devolver localhost
+  if (process.env.NODE_ENV === "production") {
+    return PRODUCTION_URL;
+  }
+
   return new URL(request.url).origin;
 }
 
-/**
- * OAuth (Google) + email confirm.
- * Session cookies must be written onto the redirect response.
- */
+function loginErrorRedirect(origin: string, message: string) {
+  const params = new URLSearchParams({
+    error: "auth",
+    message,
+  });
+  return NextResponse.redirect(`${origin}/login?${params.toString()}`);
+}
+
 export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const code = url.searchParams.get("code");
-  const tokenHash = url.searchParams.get("token_hash");
-  const type = url.searchParams.get("type") as EmailOtpType | null;
-  const next = safeNext(url.searchParams.get("next"));
+  const requestUrl = new URL(request.url);
+  const code = requestUrl.searchParams.get("code");
+  const tokenHash = requestUrl.searchParams.get("token_hash");
+  const type = requestUrl.searchParams.get("type") as EmailOtpType | null;
+  const next = safeNext(requestUrl.searchParams.get("next"));
   const origin = getOrigin(request);
 
-  const cookieStore = await cookies();
+  const oauthError = requestUrl.searchParams.get("error");
+  const oauthDescription = requestUrl.searchParams.get("error_description");
+  if (oauthError) {
+    return loginErrorRedirect(
+      origin,
+      oauthDescription || oauthError || "Error de autorización con Google."
+    );
+  }
 
+  const cookieStore = await cookies();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    return NextResponse.redirect(`${origin}/login?error=auth`);
+    return loginErrorRedirect(origin, "Faltan variables de Supabase en el servidor.");
   }
 
-  let redirectResponse = NextResponse.redirect(`${origin}${next}`);
+  let successRedirect = NextResponse.redirect(`${origin}${next}`);
 
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
@@ -58,35 +79,40 @@ export async function GET(request: Request) {
           try {
             cookieStore.set(name, value, options);
           } catch {
-            // Route Handler may not allow mutating request cookies.
+            // ignore
           }
-          redirectResponse.cookies.set(name, value, options);
+          successRedirect.cookies.set(name, value, options);
         });
       },
     },
   });
 
-  let ok = false;
-
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    ok = !error;
     if (error) {
       console.error("[auth/callback] exchangeCodeForSession", error.message);
+      return loginErrorRedirect(
+        origin,
+        `No se pudo crear la sesión: ${error.message}. Prueba de nuevo el botón Google desde la web de Railway (no uses enlaces viejos a localhost).`
+      );
     }
   } else if (tokenHash && type) {
     const { error } = await supabase.auth.verifyOtp({
       type,
       token_hash: tokenHash,
     });
-    ok = !error;
     if (error) {
       console.error("[auth/callback] verifyOtp", error.message);
+      return loginErrorRedirect(
+        origin,
+        `No se pudo confirmar el correo: ${error.message}`
+      );
     }
-  }
-
-  if (!ok) {
-    return NextResponse.redirect(`${origin}/login?error=auth`);
+  } else {
+    return loginErrorRedirect(
+      origin,
+      "Falta el código de Google/correo en la URL. Inicia sesión otra vez desde la web de producción."
+    );
   }
 
   const {
@@ -103,7 +129,7 @@ export async function GET(request: Request) {
       (user.user_metadata?.picture as string | undefined) ||
       null;
 
-    const { error: profileError } = await supabase.from("profiles").upsert(
+    await supabase.from("profiles").upsert(
       {
         id: user.id,
         full_name: fullName,
@@ -111,10 +137,7 @@ export async function GET(request: Request) {
       },
       { onConflict: "id" }
     );
-    if (profileError) {
-      console.error("[auth/callback] profile upsert", profileError.message);
-    }
   }
 
-  return redirectResponse;
+  return successRedirect;
 }
