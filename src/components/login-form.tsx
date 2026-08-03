@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail, UserRound } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { registerAccount, confirmUserEmail } from "@/app/actions/auth";
 import {
   notifySignupConfirmation,
   subscribeNewsletterEmail,
@@ -59,7 +60,11 @@ export function LoginForm() {
   const [remember, setRemember] = useState(true);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [newsletter, setNewsletter] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    searchParams.get("error") === "auth"
+      ? "No se pudo confirmar el correo. Solicita un reenvío e inténtalo de nuevo."
+      : null
+  );
   const [message, setMessage] = useState<string | null>(null);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -94,45 +99,61 @@ export function LoginForm() {
 
     try {
       if (mode === "login") {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
+        let { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
+
+        // Si el correo no está confirmado, intentamos confirmarlo (service role) y reintentar
+        if (
+          signInError &&
+          /email not confirmed/i.test(signInError.message)
+        ) {
+          const confirmed = await confirmUserEmail(email);
+          if (confirmed.ok) {
+            ({ error: signInError } = await supabase.auth.signInWithPassword({
+              email,
+              password,
+            }));
+          } else {
+            setPendingEmail(email);
+            throw new Error(
+              confirmed.message.includes("SERVICE_ROLE")
+                ? "Tu correo aún no está confirmado. Pega SUPABASE_SERVICE_ROLE_KEY en .env.local (Supabase → Settings → API) y reinicia el servidor, o confirma el enlace del correo."
+                : confirmed.message
+            );
+          }
+        }
+
         if (signInError) throw signInError;
         router.push(afterAuthPath);
         router.refresh();
       } else {
-        const { data, error: signUpError } = await supabase.auth.signUp({
+        const registered = await registerAccount({
           email,
           password,
-          options: {
-            data: {
-              full_name: fullName,
-              newsletter,
-            },
-            emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(afterAuthPath)}`,
-          },
+          fullName,
         });
-        if (signUpError) throw signUpError;
+
+        if (!registered.ok) {
+          if (/ya está registrado/i.test(registered.message)) {
+            setMode("login");
+          }
+          throw new Error(registered.message);
+        }
 
         if (newsletter) {
           void subscribeNewsletterEmail(email, fullName).catch(() => null);
         }
 
-        // Aviso por Brevo + correo de confirmación de Supabase Auth
-        void notifySignupConfirmation(email, fullName).catch(() => null);
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (signInError) throw signInError;
 
-        if (data.session) {
-          router.push(afterAuthPath);
-          router.refresh();
-          return;
-        }
-
-        setPendingEmail(email);
-        setMessage(
-          `Te enviamos un correo a ${email} para confirmar tu cuenta. Abre el enlace de confirmación y luego inicia sesión.`
-        );
-        setMode("login");
+        router.push(afterAuthPath);
+        router.refresh();
       }
     } catch (err) {
       const raw = err instanceof Error ? err.message : "Ocurrió un error";
