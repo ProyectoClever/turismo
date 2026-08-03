@@ -1,0 +1,67 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="195"
+  height="50"
+  viewBox="0 0 195 50"
+  fill="none"
+  role="img"
+  aria-label="TurismoGo"
+>
+  <title>TurismoGo</title>
+
+  <g transform="translate(0, 1) scale(0.255)">
+    <path
+      d="
+        M77.5 16
+        C49.33 16 26.5 38.72 26.5 66.75
+        C26.5 102.47 62.08 142.12 73.21 153.91
+        C75.57 156.42 79.43 156.42 81.79 153.91
+        C92.92 142.12 128.5 102.47 128.5 66.75
+        C128.5 38.72 105.67 16 77.5 16Z
+      "
+      fill="#27C0CF"
+    />
+    <g transform="translate(77.5 70) rotate(-32) scale(1)">
+      <path
+        d="
+          M0 -24.8
+          C1.9 -24.8 3.4 -23.3 3.4 -21.4
+          L3.4 -6.8
+          L25.2 4.15
+          C26.6 4.9 27.3 6.5 26.85 8
+          L26.2 10.1
+          L3.4 5.15
+          L3.4 15.35
+          L11.4 21.9
+          C12.5 22.75 13 24.15 12.7 25.45
+          L12.15 27.5
+          L0 22.78
+          L-12.15 27.5
+          L-12.7 25.45
+          C-13 24.15 -12.5 22.75 -11.4 21.9
+          L-3.4 15.35
+          L-3.4 5.15
+          L-26.2 10.1
+          L-26.85 8
+          C-27.3 6.5 -26.6 4.9 -25.2 4.15
+          L-3.4 -6.8
+          L-3.4 -21.4
+          C-3.4 -23.3 -1.9 -24.8 0 -24.8Z
+        "
+        fill="#FFFFFF"
+      />
+    </g>
+  </g>
+
+  <text
+    x="42"
+    y="33"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="22"
+    font-weight="700"
+    letter-spacing="-0.4"
+  >
+    <tspan fill="#0b1f3a">Turismo</tspan>
+    <tspan fill="#10a7b5">Go</tspan>
+  </text>
+</svg>
