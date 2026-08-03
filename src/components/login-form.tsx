@@ -95,7 +95,7 @@ export function LoginForm() {
     setLoading(true);
     const supabase = createClient();
     const afterAuthPath =
-      !redirect || redirect === "/" ? "/perfil" : redirect;
+      !redirect || redirect === "/" ? "/" : redirect;
 
     try {
       if (mode === "login") {
@@ -187,7 +187,7 @@ export function LoginForm() {
     try {
       const supabase = createClient();
       const afterAuthPath =
-        !redirect || redirect === "/" ? "/perfil" : redirect;
+        !redirect || redirect === "/" ? "/" : redirect;
       const { error: resendError } = await supabase.auth.resend({
         type: "signup",
         email: target,

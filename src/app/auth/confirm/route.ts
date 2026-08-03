@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     searchParams.get("next")?.startsWith("/") &&
     !searchParams.get("next")?.startsWith("//")
       ? (searchParams.get("next") as string)
-      : "/perfil";
+      : "/";
 
   if (tokenHash) {
     const supabase = await createClient();

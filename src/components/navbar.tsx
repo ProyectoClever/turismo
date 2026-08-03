@@ -52,7 +52,7 @@ export function Navbar({ userEmail }: NavbarProps) {
       </nav>
 
       <Link
-        href={userEmail ? "/perfil" : "/login?redirect=/perfil"}
+        href={userEmail ? "/perfil" : "/login?redirect=/"}
         className={cn(
           buttonVariants({ variant: "outline" }),
           "h-[38px] justify-self-end gap-[9px] rounded-[7px] border border-[#22a8b5] bg-white px-[17px] text-[15px] font-semibold text-[#0798a8] hover:bg-[#0798a8]/10 hover:text-[#0798a8]"
