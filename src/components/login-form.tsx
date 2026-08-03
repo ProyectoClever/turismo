@@ -209,15 +209,27 @@ export function LoginForm() {
 
   async function onGoogle() {
     setError(null);
+    setMessage(null);
     const supabase = createClient();
+    const afterAuthPath =
+      !redirect || redirect === "/" ? "/" : redirect;
+
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirect)}`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(afterAuthPath)}`,
+        queryParams: {
+          access_type: "offline",
+          prompt: "select_account",
+        },
       },
     });
     if (oauthError) {
-      setError(oauthError.message);
+      setError(
+        /provider is not enabled/i.test(oauthError.message)
+          ? "Google no está activado aún. Actívalo en Supabase → Authentication → Providers → Google."
+          : oauthError.message
+      );
     }
   }
 

@@ -4,8 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 
 function safeNext(path: string | null) {
   if (!path || !path.startsWith("/") || path.startsWith("//")) {
-  return "/";
-}
+    return "/";
+  }
   return path;
 }
 
